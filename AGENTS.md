@@ -9,7 +9,8 @@ Agent skills repository for fasta.ai. Contains reusable SKILL.md files that guid
 
 ## Adding / Editing Skills
 - Place each skill in its own directory under `skills/` with a `SKILL.md` file.
-- Frontmatter is required: `name` (kebab-case) and `description` (one-line trigger phrase for agent matching).
+- Frontmatter is required: `name` (kebab-case, matching directory name) and `description` (quoted, includes trigger phrases for agent matching).
+- Update the skills table in `README.md` when adding or removing a skill.
 - Never hard-code or log credentials; reference env vars (e.g., `$ADHOCSEARCH_API_KEY`).
 - Include usage examples in curl, Python, and TypeScript where applicable.
 
