@@ -19,12 +19,12 @@ Three values are required. Resolve each using the **first available** source (in
 |---|---|---|---|
 | API Key | `LENX_API_KEY` | User-provided or project config | — (required) |
 | User ID | `LENX_USER_ID` | User-provided or project config | — (required) |
-| Endpoint URL | `LENX_ENDPOINT` | User-provided or project config | `https://api.lenx.ai` |
+| Endpoint URL | `LENX_ENDPOINT` | User-provided or project config | `https://open.lenx.ai` |
 
 **Resolution rules:**
 1. If the user explicitly provides a value (in chat, a config file, or `.env`), use it.
 2. Otherwise check environment variables listed above.
-3. For endpoint URL only, fall back to `https://api.lenx.ai` if nothing is set.
+3. For endpoint URL only, fall back to `https://open.lenx.ai` if nothing is set.
 4. If API Key or User ID cannot be resolved, **ask the user** before proceeding.
 
 Never hard-code or log credentials. When constructing commands, prefer referencing environment variables (e.g., `$LENX_API_KEY`) over inlining secrets.
@@ -146,7 +146,7 @@ Results are sorted by `unix_timestamp` descending (newest first). To paginate:
 ### curl
 
 ```bash
-curl -s "${LENX_ENDPOINT:-https://api.lenx.ai}/api/v1/tasks/42/data?from=1711929600&to=1714521600&size=10" \
+curl -s "${LENX_ENDPOINT:-https://open.lenx.ai}/api/v1/tasks/42/data?from=1711929600&to=1714521600&size=10" \
   -H "x-api-key: $LENX_API_KEY" \
   -H "x-user-id: $LENX_USER_ID"
 ```
@@ -156,7 +156,7 @@ curl -s "${LENX_ENDPOINT:-https://api.lenx.ai}/api/v1/tasks/42/data?from=1711929
 ```python
 import os, requests
 
-endpoint = os.getenv("LENX_ENDPOINT", "https://api.lenx.ai")
+endpoint = os.getenv("LENX_ENDPOINT", "https://open.lenx.ai")
 task_id = 42
 
 resp = requests.get(
@@ -178,7 +178,7 @@ posts = resp.json()["data"]
 ### TypeScript / Node.js (fetch)
 
 ```typescript
-const endpoint = process.env.LENX_ENDPOINT ?? "https://api.lenx.ai";
+const endpoint = process.env.LENX_ENDPOINT ?? "https://open.lenx.ai";
 const taskId = 42;
 
 const params = new URLSearchParams({
@@ -204,7 +204,7 @@ const { data } = await res.json();
 ```python
 import os, requests
 
-endpoint = os.getenv("LENX_ENDPOINT", "https://api.lenx.ai")
+endpoint = os.getenv("LENX_ENDPOINT", "https://open.lenx.ai")
 task_id = 42
 all_posts = []
 search_after = None
