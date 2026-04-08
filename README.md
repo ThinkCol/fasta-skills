@@ -6,11 +6,11 @@ Agent skills for FASTA and Lenx API workflows.
 
 ```bash
 # Install all skills
-npx skills add fasta-ai/fasta-skills
+npx skills add ThinkCol/fasta-skills
 
 # Install a specific skill
-npx skills add fasta-ai/fasta-skills --skill fasta-adhocsearch-api
-npx skills add fasta-ai/fasta-skills --skill open-lenx-api
+npx skills add ThinkCol/fasta-skills --skill fasta-adhocsearch-api
+npx skills add ThinkCol/fasta-skills --skill open-lenx-api
 ```
 
 By default skills install to the current project. Add `-g` for a global install. Target a specific agent with `--agent` (e.g., `--agent amp`, `--agent cursor`).
