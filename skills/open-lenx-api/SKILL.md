@@ -1,11 +1,11 @@
 ---
 name: open-lenx-api
-description: "Fetch monitoring data from the Lenx Open API by task ID and date range. Use when the user asks to query Lenx tasks, pull Lenx data, integrate with the Lenx API, update task settings, or retrieve social monitoring posts."
+description: "Fetch monitoring data from the Lenx Open API by task ID and date range. Use when the user asks to query Lenx tasks, pull Lenx data, integrate with the Lenx API, update task settings, retrieve social monitoring posts, create new monitoring tasks, delete tasks, or list all accessible tasks."
 ---
 
 # Lenx Open API
 
-Lenx is a data monitoring system. This skill covers authenticating and calling the Lenx Open API to retrieve or update monitoring tasks.
+Lenx is a data monitoring system. This skill covers authenticating and calling the Lenx Open API to create, retrieve, update, delete, and list monitoring tasks.
 
 ## Credentials
 
@@ -60,6 +60,59 @@ Cached 5 minutes. Returns `{ "data": { ... } }` with fields:
 - **401** — Invalid API key or user ID
 - **403** — User does not have permission to access this task
 - **404** — Task not found
+
+---
+
+### Get Tasks
+
+List all tasks accessible to the authenticated user, with pagination.
+
+```
+GET {endpoint}/api/v1/tasks
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `page` | `number` | No | Page number (default: 1) |
+| `size` | `number` | No | Results per page, max 20 (default: 10) |
+
+#### Response (200 OK)
+
+Cached 5 minutes. Returns:
+
+```json
+{
+  "data": [
+    {
+      "task_id": 123,
+      "task_name": "My Task",
+      "task_type": 0,
+      "indus_id": null,
+      "labels": [],
+      "lang_abbr": "en",
+      "status": 1,
+      "created_at": "2025-01-15T10:30:00.000Z",
+      "updated_at": "2025-03-20T14:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "size": 10,
+    "total": 42,
+    "totalPages": 5
+  }
+}
+```
+
+Each item contains: `task_id`, `task_name`, `task_type`, `indus_id`, `labels`, `lang_abbr`, `status`, `created_at`, `updated_at`.
+
+Results are sorted by `updated_at` descending.
+
+#### Errors
+
+- **400** — Invalid query parameters
+- **401** — Invalid API key or user ID
+- **500** — Unexpected error
 
 ---
 
@@ -120,7 +173,7 @@ Each `EQLayer` has `in` (include terms) and `ex` (exclude terms). Quick rules:
 - Multiple layers are joined with `OR`
 - `in` + `ex` in same layer → implicit `AND NOT`
 
-> **When you need to build or modify `query_layer`:** Read the full reference at `QUERY_LAYER.md` (in this skill's directory) before constructing the payload. It contains type constraints, conversion logic, decision guides, examples, and common mistakes.
+> **When you need to build or modify `query_layer`:** Read the full reference at `references/QUERY_LAYER.md` before constructing the payload. It contains type constraints, conversion logic, decision guides, examples, and common mistakes.
 
 #### Response (200 OK)
 
@@ -137,6 +190,91 @@ Each `EQLayer` has `in` (include terms) and `ex` (exclude terms). Quick rules:
 | **403** | User does not have permission to access this task |
 | **404** | Task not found |
 | **404** | Search query not found for this task |
+| **500** | Unexpected error |
+
+---
+
+### Create Task
+
+Create a new monitoring task with a search query configuration.
+
+```
+POST {endpoint}/api/v1/tasks
+```
+
+#### Request Body
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `task_type` | `string` | **Yes** | `"live"` or `"adhoc"` |
+| `task_name` | `string` | **Yes** | 1–50 characters |
+| `language` | `string` | **Yes** | `"zh-t"`, `"zh-s"`, or `"en"` |
+| `date_range` | `object` | Conditional | Required for `adhoc` tasks, forbidden for `live` tasks |
+| `date_range.from` | `number` | **Yes** | Start timestamp (Unix milliseconds, positive) |
+| `date_range.to` | `number` | **Yes** | End timestamp (Unix milliseconds, must be > `from`) |
+| `search_query` | `object` | **Yes** | Search configuration (see below) |
+| `search_query.query_layer` | `EQLayer[]` | **Yes** | At least 1 entry. Each entry has optional `in` and `ex` arrays (see `query_layer` summary above) |
+| `search_query.region` | `string` | No | `"Hong Kong"`, `"China"`, `"Taiwan"`, or `"USA"` |
+| `search_query.list_medium` | `string[]` | No | At least 1 when provided. Values: `"Facebook"`, `"Instagram"`, `"Social"`, `"News"`, `"Forum"`, `"Blog"`, `"Videos"` |
+
+> **Validation:** `query_layer` must have at least one entry. For `adhoc` tasks, `date_range` is required. For `live` tasks, `date_range` must be omitted.
+
+> **When you need to build or modify `query_layer`:** Read the full reference at `references/QUERY_LAYER.md` before constructing the payload.
+
+#### Response (201 Created)
+
+```json
+{
+  "data": {
+    "task_id": 123,
+    "task_name": "New Task",
+    "task_type": 0,
+    "language": "en",
+    "status": 1,
+    "created_at": "2025-01-15T10:30:00.000Z"
+  }
+}
+```
+
+#### Errors
+
+| Status | Condition |
+|---|---|
+| **400** | Invalid request body (validation failed, or `query_layer` could not be converted — `INVALID_QUERY_LAYER`) |
+| **401** | Missing `x-user-id` header |
+| **403** | User does not have an associated account |
+| **404** | User not found |
+| **422** | Adhoc tasks are not supported yet |
+| **500** | Unexpected error |
+
+---
+
+### Delete Task
+
+Soft-delete a monitoring task. Only the task owner can delete.
+
+```
+DELETE {endpoint}/api/v1/tasks/{task_id}
+```
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `task_id` | `number` | **Yes** | Path param — monitoring task ID |
+
+#### Response (200 OK)
+
+```json
+{ "data": { "task_id": 123, "deleted": true } }
+```
+
+#### Errors
+
+| Status | Condition |
+|---|---|
+| **400** | Invalid request (e.g. non-numeric `task_id`) |
+| **401** | Missing `x-user-id` header |
+| **403** | User does not have permission to access this task, or user does not have an associated account, or user is not the task owner |
+| **404** | User not found, or task not found |
 | **500** | Unexpected error |
 
 ---
@@ -159,6 +297,43 @@ curl -s -X PATCH "${LENX_ENDPOINT:-https://open.lenx.ai}/api/v1/tasks/42" \
   -H "x-user-id: $LENX_USER_ID" \
   -H "Content-Type: application/json" \
   -d '{"task_name": "New Task Name"}'
+```
+
+### curl — Create Task
+
+```bash
+curl -s -X POST "${LENX_ENDPOINT:-https://open.lenx.ai}/api/v1/tasks" \
+  -H "x-api-key: $LENX_API_KEY" \
+  -H "x-user-id: $LENX_USER_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task_type": "live",
+    "task_name": "Brand Monitoring",
+    "language": "en",
+    "search_query": {
+      "query_layer": [
+        { "in": [["acme corp", "acme corporation"]], "ex": ["job listing"] }
+      ],
+      "region": "USA",
+      "list_medium": ["News", "Social"]
+    }
+  }'
+```
+
+### curl — Delete Task
+
+```bash
+curl -s -X DELETE "${LENX_ENDPOINT:-https://open.lenx.ai}/api/v1/tasks/42" \
+  -H "x-api-key: $LENX_API_KEY" \
+  -H "x-user-id: $LENX_USER_ID"
+```
+
+### curl — List Tasks
+
+```bash
+curl -s "${LENX_ENDPOINT:-https://open.lenx.ai}/api/v1/tasks?page=1&size=10" \
+  -H "x-api-key: $LENX_API_KEY" \
+  -H "x-user-id: $LENX_USER_ID"
 ```
 
 ### Pagination (Python)
@@ -193,8 +368,11 @@ while True:
 
 1. **Resolve credentials** using the table above.
 2. **Identify the task ID** — ask the user if not provided.
-3. **Determine the operation** — fetching data or updating a task.
+3. **Determine the operation** — fetching data, updating a task, creating a task, deleting a task, or listing tasks.
 4. **For data retrieval:** Convert dates to Unix timestamps, set `size`, make GET request, paginate if needed.
-5. **For task updates:** Build the PATCH body with only the fields being changed. If updating `query_layer`, read `QUERY_LAYER.md` first.
-6. **Handle errors:** Surface validation (400), auth (401), and permission (403) errors clearly.
-7. **Present results:** Summarize post count, date range, and key content.
+5. **For task updates:** Build the PATCH body with only the fields being changed. If updating `query_layer`, read `references/QUERY_LAYER.md` first.
+6. **For task creation:** Build the POST body with `task_type`, `task_name`, `language`, and `search_query`. If updating `query_layer`, read `references/QUERY_LAYER.md` first. Note: `adhoc` tasks are not yet supported (returns 422).
+7. **For task deletion:** Confirm the user wants to delete (this is a soft delete). Only the task owner can delete.
+8. **For listing tasks:** Use `page` and `size` query params for pagination (max size: 20). Results are sorted by `updated_at` descending.
+9. **Handle errors:** Surface validation (400), auth (401), and permission (403) errors clearly.
+10. **Present results:** Summarize post count, date range, and key content.
