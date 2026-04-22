@@ -17,10 +17,11 @@ By default skills install to the current project. Add `-g` for a global install.
 
 ## Available Skills
 
-| Skill | Description |
-|---|---|
-| [`fasta-adhocsearch-api`](skills/fasta-adhocsearch-api/SKILL.md) | Call the FASTA AdHocSearch API to search social media posts by query, keywords, date range, and country. |
-| [`open-lenx-api`](skills/open-lenx-api/SKILL.md) | Fetch monitoring data from the Lenx Open API by task ID and date range. Retrieve social monitoring posts. |
+ | Skill | Description |
+ |---|---|
+ | [`fasta-adhocsearch-api`](skills/fasta-adhocsearch-api/SKILL.md) | Call the FASTA AdHocSearch API to search social media posts by query, keywords, date range, and country. |
+ | [`open-lenx-cli`](skills/open-lenx-cli/SKILL.md) | Manage Lenx monitoring tasks via the `lenx` CLI. Requires `lenx` binary installed. |
+ | [`open-lenx-api`](skills/open-lenx-api/SKILL.md) | Fetch monitoring data from the Lenx Open API by task ID and date range. Retrieve social monitoring posts. |
 
 ## Contributing
 
