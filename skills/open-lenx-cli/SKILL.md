@@ -58,6 +58,10 @@ lenx init --url https://open.lenx.ai --user-id YOUR_ID --token YOUR_TOKEN
 
 Retrieve task details.
 
+### `lenx task data <task-id> --from TIMESTAMP --to TIMESTAMP --size N [--search-after TIMESTAMP]`
+
+Retrieve monitoring data for a task. `--from` and `--to` are Unix timestamps in milliseconds. `--size` controls the number of results (1-1000). Use `--search-after` for pagination with the `unix_timestamp` of the last result from the previous page.
+
 ### `lenx task list [--page N] [--size N]`
 
 List all accessible tasks.
@@ -111,6 +115,6 @@ See [`references/QUERY_LAYER.md`](references/QUERY_LAYER.md) for the CLI-focused
 
 1. Run `lenx init` if not configured.
 2. Use `lenx task list` to find task IDs.
-3. Use `lenx task get <id>` for details.
+3. Use `lenx task get <id>` for details, and `lenx task data <id>` to retrieve monitoring data.
 4. Use `lenx task create/update/delete` to manage tasks.
 5. Use `lenx task export` for async data export.
