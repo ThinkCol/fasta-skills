@@ -4,7 +4,7 @@ description: "Summarise Lenx task monitoring data from the lenx-mcp stdio server
 compatibility: "Requires the MCP client/agent to have lenx-mcp stdio configured so the lenx_get_task_data MCP tool is available. Requires Python 3 and bash."
 metadata:
   author: thinkcol
-  version: "1.3"
+  version: "1.4"
 ---
 
 # Lenx Task Data Summariser
@@ -47,35 +47,35 @@ Otherwise proceed to Step 3.
 
 ## Step 3 — Calculate timestamps
 
-lenx-mcp expects `from` and `to` as Unix epoch **seconds**. Do NOT use milliseconds.
+lenx-mcp expects `from`, `to`, and `search_after` as Unix timestamp **milliseconds**. Do NOT use seconds.
 
 Run the appropriate command based on `TIME_RANGE`:
 
 ```bash
 # Past 24 hours
-FROM_TS=$(python3 -c "import time; print(int(time.time() - 86400))")
-TO_TS=$(python3 -c "import time; print(int(time.time()))")
+FROM_MS=$(python3 -c "import time; print(int((time.time() - 86400) * 1000))")
+TO_MS=$(python3 -c "import time; print(int(time.time() * 1000))")
 ```
 
 ```bash
 # Past 7 days
-FROM_TS=$(python3 -c "import time; print(int(time.time() - 604800))")
-TO_TS=$(python3 -c "import time; print(int(time.time()))")
+FROM_MS=$(python3 -c "import time; print(int((time.time() - 604800) * 1000))")
+TO_MS=$(python3 -c "import time; print(int(time.time() * 1000))")
 ```
 
 ```bash
 # Past 30 days
-FROM_TS=$(python3 -c "import time; print(int(time.time() - 2592000))")
-TO_TS=$(python3 -c "import time; print(int(time.time()))")
+FROM_MS=$(python3 -c "import time; print(int((time.time() - 2592000) * 1000))")
+TO_MS=$(python3 -c "import time; print(int(time.time() * 1000))")
 ```
 
 ```bash
 # Custom range — replace DATE_FROM and DATE_TO with ISO dates
-FROM_TS=$(python3 -c "from datetime import datetime; print(int(datetime.fromisoformat('DATE_FROM').timestamp()))")
-TO_TS=$(python3 -c "from datetime import datetime; print(int(datetime.fromisoformat('DATE_TO').timestamp()))")
+FROM_MS=$(python3 -c "from datetime import datetime; print(int(datetime.fromisoformat('DATE_FROM').timestamp() * 1000))")
+TO_MS=$(python3 -c "from datetime import datetime; print(int(datetime.fromisoformat('DATE_TO').timestamp() * 1000))")
 ```
 
-You now have `FROM_TS` and `TO_TS`. Proceed to Step 4.
+You now have `FROM_MS` and `TO_MS`. Proceed to Step 4.
 
 ## Step 4 — Fetch ALL data into chunks
 
@@ -83,19 +83,19 @@ You now have `FROM_TS` and `TO_TS`. Proceed to Step 4.
 
 **4A — Dispatch fetch subagent**
 
-Call the Task tool once with this prompt. Replace `{TASK_ID}`, `{FROM_TS}`, `{TO_TS}`, and `{CHUNK_KB}`:
+Call the Task tool once with this prompt. Replace `{TASK_ID}`, `{FROM_MS}`, `{TO_MS}`, and `{CHUNK_KB}`:
 
 ```
-Use the configured lenx-mcp stdio MCP tool `lenx_get_task_data` to fetch all Lenx monitoring data for task {TASK_ID} from Unix epoch second {FROM_TS} to {TO_TS}.
+Use the configured lenx-mcp stdio MCP tool `lenx_get_task_data` to fetch all Lenx monitoring data for task {TASK_ID} from Unix timestamp milliseconds {FROM_MS} to {TO_MS}.
 
 Do not ask for Lenx credentials. They are already configured in the MCP client. Do not return raw records in your final response.
 
 Fetch pages with arguments:
 - task_id: {TASK_ID}
-- from: {FROM_TS}
-- to: {TO_TS}
+- from: {FROM_MS}
+- to: {TO_MS}
 - size: 1000
-- search_after: omit on the first call; for later calls, use the `unix_timestamp` of the last record from the previous page
+- search_after: omit on the first call; for later calls, use the `unix_timestamp` millisecond value of the last record from the previous page
 
 For each page, immediately convert records to compact TOON files under `.lenx-summariser-work`:
 - Create `.lenx-summariser-work` if it does not exist before writing files
@@ -413,7 +413,7 @@ Exact agent execution:
 |---|---|---|
 | 1 | Parse | `TASK_ID=1528`, `TIME_RANGE=past 24 hours`, `USER_FOCUS=negative sentiment data`, `FORMAT=text`, `PARALLEL_CAP=5`, `CHUNK_KB=100` |
 | 2 | Check lenx-mcp stdio prerequisites | `lenx_get_task_data` MCP tool is available ✓ |
-| 3 | Calculate timestamps | `FROM_TS=1745351234`, `TO_TS=1745437634` |
+| 3 | Calculate timestamps | `FROM_MS=1745351234000`, `TO_MS=1745437634000` |
 | 4 | Dispatch fetch subagent using `lenx_get_task_data` | `TOTAL_RECORDS=580`, `TOTAL_CHUNKS=4` (TOON format, ~100 KB/chunk, retries handled automatically) |
 | 5 | Dispatch 4 subagents (1 batch of 4) | 4 × `level0_summary_*.txt` written |
 | 6A | `merge-summaries.py ... 5 1` | `FINAL` (≤5 summaries → single merge) |
