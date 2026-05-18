@@ -1,10 +1,10 @@
 ---
 name: lenx-task-summariser
 description: "Summarise Lenx task monitoring data from the lenx-mcp stdio server using recursive hierarchical summarisation. Use when asked to summarise, analyse, or report on lenx task data, especially large datasets. Triggers on: /lenx-summarise, lenx summary, lenx report, summarise lenx task, lenx task analysis."
-compatibility: "Requires lenx-mcp stdio server via npx @fastaai/lenx-mcp, LENX_API_KEY, LENX_USER_ID, Python 3, and bash."
+compatibility: "Requires the MCP client/agent to have lenx-mcp stdio configured so the lenx_get_task_data MCP tool is available. Requires Python 3 and bash."
 metadata:
   author: thinkcol
-  version: "1.2"
+  version: "1.3"
 ---
 
 # Lenx Task Data Summariser
@@ -37,21 +37,11 @@ Proceed to Step 2.
 
 ## Step 2 — Check prerequisites
 
-Run this exact command:
+Confirm the current agent has access to the `lenx_get_task_data` MCP tool from a configured `lenx-mcp` stdio server.
 
-```bash
-if [ -n "${LENX_MCP_COMMAND:-}" ]; then
-  command -v "$(printf '%s\n' "$LENX_MCP_COMMAND" | awk '{print $1}')" >/dev/null || echo "LENX_MCP_COMMAND_NOT_FOUND"
-else
-  command -v npx >/dev/null || echo "NPX_NOT_FOUND"
-fi
-test -n "${LENX_API_KEY:-}" || echo "LENX_API_KEY_MISSING"
-test -n "${LENX_USER_ID:-}" || echo "LENX_USER_ID_MISSING"
-```
+Do NOT ask the user for `LENX_API_KEY`, `LENX_USER_ID`, or `LENX_BASE_URL`. Those credentials belong in the user's MCP client configuration and are used by the already-configured `lenx-mcp` server.
 
-If output contains any `*_MISSING`, `NPX_NOT_FOUND`, or `LENX_MCP_COMMAND_NOT_FOUND`, tell the user the missing lenx-mcp stdio prerequisite and STOP. Do not continue.
-
-`LENX_BASE_URL` is optional; lenx-mcp defaults to `https://open.lenx.ai`.
+If `lenx_get_task_data` is not available, tell the user: "The lenx-mcp stdio server is not available in this MCP client. Please configure `@fastaai/lenx-mcp` in your `mcpServers` settings, then restart/reload the client." Then STOP. Do not continue.
 
 Otherwise proceed to Step 3.
 
@@ -89,40 +79,64 @@ You now have `FROM_TS` and `TO_TS`. Proceed to Step 4.
 
 ## Step 4 — Fetch ALL data into chunks
 
-The fetch script handles full pagination and produces compact **TOON** (Tab-delimited, Token-Optimized Notation) chunk files. Compared to raw JSON it:
-- Keeps only 14 relevant fields per record (strips 20+ unused fields)
-- Truncates `post_message` to 500 words
-- Uses tab-delimited rows instead of JSON — ~60-70% smaller
+**YOU — the main agent — MUST NOT fetch pages yourself.** Raw MCP page results can be large and will pollute your context. Dispatch exactly one fetch subagent to do the MCP pagination and chunk writing, then only read the small metadata file it creates.
 
-It also:
-1. Starts the `lenx-mcp` stdio server (default command: `npx -y @fastaai/lenx-mcp`) and calls the `lenx_get_task_data` MCP tool with `size=1000` (max API page size) for speed
-2. Reads `total` from the API response (`{"data": [...], "total": N}`) to know the full dataset size
-3. Uses `search_after` with the `unix_timestamp` of the last record in each page to fetch the next page (results are sorted descending by `unix_timestamp`)
-4. Repeats until all pages are fetched (`fetched >= total`)
-5. Dynamically sizes chunks to ~100 KB each (`chunk0.toon`, `chunk1.toon`, etc.) — short posts produce more records per chunk, long posts fewer, so each subagent gets a similar workload
-6. **Retries each API request up to 3 times** with exponential backoff (2s, 4s, 8s) if a request fails
-7. **Resumable** — if interrupted, re-running the same command detects existing chunk files and continues from where it left off (no duplicate fetching)
+**4A — Dispatch fetch subagent**
 
-**4A — Run the fetch script:**
+Call the Task tool once with this prompt. Replace `{TASK_ID}`, `{FROM_TS}`, `{TO_TS}`, and `{CHUNK_KB}`:
+
+```
+Use the configured lenx-mcp stdio MCP tool `lenx_get_task_data` to fetch all Lenx monitoring data for task {TASK_ID} from Unix epoch second {FROM_TS} to {TO_TS}.
+
+Do not ask for Lenx credentials. They are already configured in the MCP client. Do not return raw records in your final response.
+
+Fetch pages with arguments:
+- task_id: {TASK_ID}
+- from: {FROM_TS}
+- to: {TO_TS}
+- size: 1000
+- search_after: omit on the first call; for later calls, use the `unix_timestamp` of the last record from the previous page
+
+For each page, immediately convert records to compact TOON files under `.lenx-summariser-work`:
+- Create `.lenx-summariser-work` if it does not exist before writing files
+- Keep fields in this order: post_timestamp, post_message, thread_title, site, country, post_link, sentiment_score, medium, channel, reaction_count, comment_count, share_count, view_count, unix_timestamp
+- Replace tabs/newlines/carriage returns in field values with spaces
+- Truncate `post_message` to 500 words
+- Write `#TOON v1` then a `#` header line with the field names joined by tabs
+- Dynamically size files to about {CHUNK_KB} KB each, named `chunk0.toon`, `chunk1.toon`, etc.
+
+Retry failed MCP tool calls up to 3 times with exponential backoff (2s, 4s, 8s). Continue until all available pages are fetched (`fetched >= total`) or the last page has fewer than 1000 records.
+
+When done, write `.lenx-summariser-work/fetch_metadata.json` with exactly:
+{
+  "total_records": <total from lenx_get_task_data>,
+  "total_chunks": <number of chunk*.toon files>,
+  "complete": true
+}
+
+Final response: one sentence only, with total records and total chunks. Do not include raw records.
+```
+
+Wait until the fetch subagent returns.
+
+**4B — Read fetch metadata:**
+
+Run this exact command:
 
 ```bash
-python3 "SKILL_DIR/scripts/fetch-chunks.py" TASK_ID FROM_TS TO_TS CHUNK_KB ".lenx-summariser-work"
+python3 - <<'PY'
+import json
+with open('.lenx-summariser-work/fetch_metadata.json', 'r', encoding='utf-8') as f:
+    meta = json.load(f)
+print(meta['total_records'])
+print(meta['total_chunks'])
+print('yes' if meta.get('complete') else 'no')
+PY
 ```
 
-The script prints three lines to stdout (progress goes to stderr):
-- Line 1: `TOTAL_RECORDS` — the `total` field from the API (full dataset size)
-- Line 2: `TOTAL_CHUNKS` — number of chunk files written so far
-- Line 3: `COMPLETE` — `yes` if all records fetched, `no` if incomplete
+Assign stdout line 1 to `TOTAL_RECORDS`, line 2 to `TOTAL_CHUNKS`, and line 3 to `COMPLETE`.
 
-**4B — Check completion. If line 3 is `no`, re-run the EXACT same command.** The script will detect existing chunks and resume automatically. Keep re-running until line 3 is `yes`.
-
-```
-# Pseudocode — repeat until complete:
-COMPLETE="no"
-while COMPLETE is "no":
-    run: python3 "SKILL_DIR/scripts/fetch-chunks.py" TASK_ID FROM_TS TO_TS CHUNK_KB ".lenx-summariser-work"
-    read TOTAL_RECORDS, TOTAL_CHUNKS, COMPLETE from stdout
-```
+If `COMPLETE` is not `yes`, STOP and report that Lenx MCP data fetching did not complete.
 
 **4C — Verify chunk files exist:**
 
@@ -348,20 +362,29 @@ Do NOT mention chunks, batches, levels, subagents, recursive merging, or any int
 
 ## Reference — lenx-mcp stdio configuration
 
-The fetch script starts lenx-mcp directly over stdio. Default command:
+This skill expects the user's MCP client to expose the `lenx_get_task_data` tool from a configured `lenx-mcp` stdio server. Example MCP client configuration:
 
-```bash
-npx -y @fastaai/lenx-mcp
+```json
+{
+  "mcpServers": {
+    "lenx": {
+      "command": "npx",
+      "args": ["-y", "@fastaai/lenx-mcp"],
+      "env": {
+        "LENX_API_KEY": "your-api-key",
+        "LENX_USER_ID": "your-user-id",
+        "LENX_BASE_URL": "https://open.lenx.ai"
+      }
+    }
+  }
+}
 ```
 
-Required environment variables:
+Credential handling:
 
-| Variable | Required | Description |
-|---|---|---|
-| `LENX_API_KEY` | Yes | Lenx API key |
-| `LENX_USER_ID` | Yes | Lenx user ID |
-| `LENX_BASE_URL` | No | API base URL; defaults to `https://open.lenx.ai` |
-| `LENX_MCP_COMMAND` | No | Override command for a globally installed or pinned lenx-mcp server |
+- Do not ask the user to re-enter credentials if `lenx_get_task_data` is already available.
+- Do not read MCP config files to extract credentials.
+- Do not log or copy credential values into generated files.
 
 Only the `lenx_get_task_data` MCP tool is required by this skill.
 
@@ -389,9 +412,9 @@ Exact agent execution:
 | Step | Action | Result |
 |---|---|---|
 | 1 | Parse | `TASK_ID=1528`, `TIME_RANGE=past 24 hours`, `USER_FOCUS=negative sentiment data`, `FORMAT=text`, `PARALLEL_CAP=5`, `CHUNK_KB=100` |
-| 2 | Check lenx-mcp stdio prerequisites | `npx`, `LENX_API_KEY`, and `LENX_USER_ID` ✓ |
+| 2 | Check lenx-mcp stdio prerequisites | `lenx_get_task_data` MCP tool is available ✓ |
 | 3 | Calculate timestamps | `FROM_TS=1745351234`, `TO_TS=1745437634` |
-| 4 | `python3 fetch-chunks.py 1528 ... 100` | `TOTAL_RECORDS=580`, `TOTAL_CHUNKS=4` via `lenx_get_task_data` (TOON format, ~100 KB/chunk, retries handled automatically) |
+| 4 | Dispatch fetch subagent using `lenx_get_task_data` | `TOTAL_RECORDS=580`, `TOTAL_CHUNKS=4` (TOON format, ~100 KB/chunk, retries handled automatically) |
 | 5 | Dispatch 4 subagents (1 batch of 4) | 4 × `level0_summary_*.txt` written |
 | 6A | `merge-summaries.py ... 5 1` | `FINAL` (≤5 summaries → single merge) |
 | 7 | `format-output.py ... text lenx_task_1528_summary.txt` | File created |
