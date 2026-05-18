@@ -1,10 +1,10 @@
 ---
 name: lenx-task-summariser
-description: "Summarise Lenx task monitoring data using recursive hierarchical summarisation. Use when asked to summarise, analyse, or report on lenx task data, especially large datasets. Triggers on: /lenx-summarise, lenx summary, lenx report, summarise lenx task, lenx task analysis."
-compatibility: "Requires lenx CLI binary installed and configured (lenx init). Requires Python 3 and bash."
+description: "Summarise Lenx task monitoring data from the lenx-mcp stdio server using recursive hierarchical summarisation. Use when asked to summarise, analyse, or report on lenx task data, especially large datasets. Triggers on: /lenx-summarise, lenx summary, lenx report, summarise lenx task, lenx task analysis."
+compatibility: "Requires lenx-mcp stdio server via npx @fastaai/lenx-mcp, LENX_API_KEY, LENX_USER_ID, Python 3, and bash."
 metadata:
   author: thinkcol
-  version: "1.1"
+  version: "1.2"
 ---
 
 # Lenx Task Data Summariser
@@ -40,42 +40,52 @@ Proceed to Step 2.
 Run this exact command:
 
 ```bash
-which lenx 2>/dev/null || echo "LENX_NOT_FOUND"
+if [ -n "${LENX_MCP_COMMAND:-}" ]; then
+  command -v "$(printf '%s\n' "$LENX_MCP_COMMAND" | awk '{print $1}')" >/dev/null || echo "LENX_MCP_COMMAND_NOT_FOUND"
+else
+  command -v npx >/dev/null || echo "NPX_NOT_FOUND"
+fi
+test -n "${LENX_API_KEY:-}" || echo "LENX_API_KEY_MISSING"
+test -n "${LENX_USER_ID:-}" || echo "LENX_USER_ID_MISSING"
 ```
 
-If output contains `LENX_NOT_FOUND`, tell the user `lenx CLI is not installed` and STOP. Do not continue.
+If output contains any `*_MISSING`, `NPX_NOT_FOUND`, or `LENX_MCP_COMMAND_NOT_FOUND`, tell the user the missing lenx-mcp stdio prerequisite and STOP. Do not continue.
+
+`LENX_BASE_URL` is optional; lenx-mcp defaults to `https://open.lenx.ai`.
 
 Otherwise proceed to Step 3.
 
 ## Step 3 — Calculate timestamps
 
+lenx-mcp expects `from` and `to` as Unix epoch **seconds**. Do NOT use milliseconds.
+
 Run the appropriate command based on `TIME_RANGE`:
 
 ```bash
 # Past 24 hours
-FROM_MS=$(python3 -c "import time; print(int((time.time() - 86400) * 1000))")
-TO_MS=$(python3 -c "import time; print(int(time.time() * 1000))")
+FROM_TS=$(python3 -c "import time; print(int(time.time() - 86400))")
+TO_TS=$(python3 -c "import time; print(int(time.time()))")
 ```
 
 ```bash
 # Past 7 days
-FROM_MS=$(python3 -c "import time; print(int((time.time() - 604800) * 1000))")
-TO_MS=$(python3 -c "import time; print(int(time.time() * 1000))")
+FROM_TS=$(python3 -c "import time; print(int(time.time() - 604800))")
+TO_TS=$(python3 -c "import time; print(int(time.time()))")
 ```
 
 ```bash
 # Past 30 days
-FROM_MS=$(python3 -c "import time; print(int((time.time() - 2592000) * 1000))")
-TO_MS=$(python3 -c "import time; print(int(time.time() * 1000))")
+FROM_TS=$(python3 -c "import time; print(int(time.time() - 2592000))")
+TO_TS=$(python3 -c "import time; print(int(time.time()))")
 ```
 
 ```bash
 # Custom range — replace DATE_FROM and DATE_TO with ISO dates
-FROM_MS=$(python3 -c "from datetime import datetime; print(int(datetime.fromisoformat('DATE_FROM').timestamp() * 1000))")
-TO_MS=$(python3 -c "from datetime import datetime; print(int(datetime.fromisoformat('DATE_TO').timestamp() * 1000))")
+FROM_TS=$(python3 -c "from datetime import datetime; print(int(datetime.fromisoformat('DATE_FROM').timestamp()))")
+TO_TS=$(python3 -c "from datetime import datetime; print(int(datetime.fromisoformat('DATE_TO').timestamp()))")
 ```
 
-You now have `FROM_MS` and `TO_MS`. Proceed to Step 4.
+You now have `FROM_TS` and `TO_TS`. Proceed to Step 4.
 
 ## Step 4 — Fetch ALL data into chunks
 
@@ -85,9 +95,9 @@ The fetch script handles full pagination and produces compact **TOON** (Tab-deli
 - Uses tab-delimited rows instead of JSON — ~60-70% smaller
 
 It also:
-1. Calls `lenx task data` with `--size 1000` (max API page size) for speed
+1. Starts the `lenx-mcp` stdio server (default command: `npx -y @fastaai/lenx-mcp`) and calls the `lenx_get_task_data` MCP tool with `size=1000` (max API page size) for speed
 2. Reads `total` from the API response (`{"data": [...], "total": N}`) to know the full dataset size
-3. Uses `--search-after` with the `unix_timestamp` of the last record in each page to fetch the next page (results are sorted descending by `unix_timestamp`)
+3. Uses `search_after` with the `unix_timestamp` of the last record in each page to fetch the next page (results are sorted descending by `unix_timestamp`)
 4. Repeats until all pages are fetched (`fetched >= total`)
 5. Dynamically sizes chunks to ~100 KB each (`chunk0.toon`, `chunk1.toon`, etc.) — short posts produce more records per chunk, long posts fewer, so each subagent gets a similar workload
 6. **Retries each API request up to 3 times** with exponential backoff (2s, 4s, 8s) if a request fails
@@ -96,7 +106,7 @@ It also:
 **4A — Run the fetch script:**
 
 ```bash
-python3 "SKILL_DIR/scripts/fetch-chunks.py" TASK_ID FROM_MS TO_MS CHUNK_KB ".lenx-summariser-work"
+python3 "SKILL_DIR/scripts/fetch-chunks.py" TASK_ID FROM_TS TO_TS CHUNK_KB ".lenx-summariser-work"
 ```
 
 The script prints three lines to stdout (progress goes to stderr):
@@ -110,7 +120,7 @@ The script prints three lines to stdout (progress goes to stderr):
 # Pseudocode — repeat until complete:
 COMPLETE="no"
 while COMPLETE is "no":
-    run: python3 "SKILL_DIR/scripts/fetch-chunks.py" TASK_ID FROM_MS TO_MS CHUNK_KB ".lenx-summariser-work"
+    run: python3 "SKILL_DIR/scripts/fetch-chunks.py" TASK_ID FROM_TS TO_TS CHUNK_KB ".lenx-summariser-work"
     read TOTAL_RECORDS, TOTAL_CHUNKS, COMPLETE from stdout
 ```
 
@@ -336,6 +346,27 @@ Do NOT mention chunks, batches, levels, subagents, recursive merging, or any int
 
 ---
 
+## Reference — lenx-mcp stdio configuration
+
+The fetch script starts lenx-mcp directly over stdio. Default command:
+
+```bash
+npx -y @fastaai/lenx-mcp
+```
+
+Required environment variables:
+
+| Variable | Required | Description |
+|---|---|---|
+| `LENX_API_KEY` | Yes | Lenx API key |
+| `LENX_USER_ID` | Yes | Lenx user ID |
+| `LENX_BASE_URL` | No | API base URL; defaults to `https://open.lenx.ai` |
+| `LENX_MCP_COMMAND` | No | Override command for a globally installed or pinned lenx-mcp server |
+
+Only the `lenx_get_task_data` MCP tool is required by this skill.
+
+---
+
 ## Reference — Output formats
 
 | Format | Flag | Extension | Description |
@@ -358,9 +389,9 @@ Exact agent execution:
 | Step | Action | Result |
 |---|---|---|
 | 1 | Parse | `TASK_ID=1528`, `TIME_RANGE=past 24 hours`, `USER_FOCUS=negative sentiment data`, `FORMAT=text`, `PARALLEL_CAP=5`, `CHUNK_KB=100` |
-| 2 | `which lenx` | `/usr/local/bin/lenx` ✓ |
-| 3 | Calculate timestamps | `FROM_MS=1745351234000`, `TO_MS=1745437634000` |
-| 4 | `python3 fetch-chunks.py 1528 ... 100` | `TOTAL_RECORDS=580`, `TOTAL_CHUNKS=4` (TOON format, ~100 KB/chunk, retries handled automatically) |
+| 2 | Check lenx-mcp stdio prerequisites | `npx`, `LENX_API_KEY`, and `LENX_USER_ID` ✓ |
+| 3 | Calculate timestamps | `FROM_TS=1745351234`, `TO_TS=1745437634` |
+| 4 | `python3 fetch-chunks.py 1528 ... 100` | `TOTAL_RECORDS=580`, `TOTAL_CHUNKS=4` via `lenx_get_task_data` (TOON format, ~100 KB/chunk, retries handled automatically) |
 | 5 | Dispatch 4 subagents (1 batch of 4) | 4 × `level0_summary_*.txt` written |
 | 6A | `merge-summaries.py ... 5 1` | `FINAL` (≤5 summaries → single merge) |
 | 7 | `format-output.py ... text lenx_task_1528_summary.txt` | File created |

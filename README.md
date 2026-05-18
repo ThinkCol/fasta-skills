@@ -20,7 +20,7 @@ By default skills install to the current project. Add `-g` for a global install.
  |---|---|
  | [`fasta-adhocsearch-api`](skills/fasta-adhocsearch-api/SKILL.md) | Call the FASTA AdHocSearch API to search social media posts by query, keywords, date range, and country. |
  | [`open-lenx-cli`](skills/open-lenx-cli/SKILL.md) | Manage Lenx monitoring tasks via the `lenx` CLI. Requires `lenx` binary installed. |
- | [`lenx-task-summariser`](skills/lenx-task-summariser/SKILL.md) | Summarise Lenx task data using recursive hierarchical summarisation. Handles large datasets (10,000+ records) via chunked parallel processing. |
+ | [`lenx-task-summariser`](skills/lenx-task-summariser/SKILL.md) | Summarise Lenx task data from the `lenx-mcp` stdio server using recursive hierarchical summarisation. Handles large datasets (10,000+ records) via chunked parallel processing. |
 
 ## Contributing
 
