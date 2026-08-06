@@ -22,6 +22,7 @@ By default skills install to the current project. Add `-g` for a global install.
  | [`open-lenx-cli`](skills/open-lenx-cli/SKILL.md) | Manage Lenx monitoring tasks via the `lenx` CLI. Requires `lenx` binary installed. |
  | [`lenx-task-summariser`](skills/lenx-task-summariser/SKILL.md) | Summarise Lenx task data via the configured `lenx-mcp` stdio MCP tool using recursive hierarchical summarisation. Handles large datasets (10,000+ records) via chunked parallel processing. |
  | [`lenx-wordcloud`](skills/lenx-wordcloud/SKILL.md)     | Generate wordcloud visualisations from Lenx task data via the lenx-mcp stdio server. Supports Chinese (jieba) and English tokenization, keyword filtering, and sentiment filtering. Requires Python 3 with wordcloud, matplotlib, Pillow, jieba. |
+ | [`lenx-spike-detector`](skills/lenx-spike-detector/SKILL.md) | Detect activity spikes (volume, sentiment, engagement, topic) in Lenx task data via the lenx-mcp stdio server. Uses robust statistical detection (MAD-based) over adaptive time buckets. Requires Python 3; matplotlib for charts. |
 
 ## Contributing
 
