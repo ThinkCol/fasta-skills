@@ -9,7 +9,7 @@
     {
       "name": "fasta-skills",
       "description": "Agent skills for FASTA and Lenx API workflows",
-      "version": "9.9.9",
+      "version": "1.0.0",
       "source": "./"
     }
   ]

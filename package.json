@@ -1,6 +1,6 @@
 {
   "name": "fasta-skills",
-  "version": "9.9.9",
+  "version": "1.0.0",
   "description": "Agent skills for FASTA and Lenx API workflows",
   "keywords": [
     "pi-package"
