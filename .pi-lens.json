@@ -1,0 +1,5 @@
+{
+  "rules": {
+    "shfmt": { "disable": true }
+  }
+}
