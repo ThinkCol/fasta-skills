@@ -114,7 +114,7 @@ bump_version() {
     json_field=$(json_path "$field")
     tmp=$file.tmp.$$
     if ! jq --argjson path "$json_field" --arg version "$new_version" \
-      'setpath($path; $version)' "$file" > "$tmp"; then
+      'setpath($path; $version)' "$file" >"$tmp"; then
       rm -f "$tmp"
       printf 'error: could not update %s\n' "$path" >&2
       exit 1
@@ -131,23 +131,23 @@ EOF
 }
 
 case ${1-} in
-  --check)
-    check_versions
-    ;;
-  '')
+--check)
+  check_versions
+  ;;
+'')
+  usage >&2
+  exit 1
+  ;;
+--*)
+  printf "error: unknown option '%s'\n" "$1" >&2
+  usage >&2
+  exit 1
+  ;;
+*)
+  if [ "$#" -ne 1 ]; then
     usage >&2
     exit 1
-    ;;
-  --*)
-    printf "error: unknown option '%s'\n" "$1" >&2
-    usage >&2
-    exit 1
-    ;;
-  *)
-    if [ "$#" -ne 1 ]; then
-      usage >&2
-      exit 1
-    fi
-    bump_version "$1"
-    ;;
+  fi
+  bump_version "$1"
+  ;;
 esac
