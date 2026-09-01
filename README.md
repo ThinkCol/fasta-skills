@@ -89,6 +89,26 @@ The single repo-level semver is `1.0.0` in `package.json`. `scripts/bump-version
 
 Releases are git tags in the form `vX.Y.Z` plus GitHub Releases. The changelog is maintained in [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
+### Publishing a new version
+
+```bash
+# 1. Bump the version in all plugin manifests
+bash scripts/bump-version.sh 1.1.0        # pick the next semver
+
+# 2. Add a section at the top of RELEASE-NOTES.md:  ## v1.1.0 (date)
+
+# 3. Commit and push the branch
+git add -A && git commit -m "release: v1.1.0" && git push origin master
+
+# 4. Tag, then push the tag separately
+git tag -a v1.1.0 -m "v1.1.0" && git push origin v1.1.0
+```
+
+CI then validates the tag against the manifests and publishes the GitHub Release automatically. Two rules:
+
+- **Push the tag separately from the branch.** Pushing both in one `git push` can fail to trigger the release workflow; if that happens, delete and re-push the tag: `git push origin :refs/tags/v1.1.0 && git push origin v1.1.0`.
+- **Never tag without bumping.** Claude Code and Codex only refresh an installed plugin when the `version` field changes, so an unmumped tag publishes a release that installed plugins ignore.
+
 - **Claude Code:** Update with `claude plugin update fasta-skills`; use the marketplace release version when pinning.
 - **Claude Desktop:** Re-sync from the marketplace to update; pinning follows the marketplace’s published version.
 - **Codex:** Reinstall from the marketplace to update; pinning follows the marketplace’s published version.
