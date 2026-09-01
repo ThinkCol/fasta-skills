@@ -1,0 +1,16 @@
+{
+  "name": "fasta-skills",
+  "description": "Agent skills for FASTA and Lenx API workflows",
+  "owner": {
+    "name": "ThinkCol",
+    "url": "https://github.com/ThinkCol"
+  },
+  "plugins": [
+    {
+      "name": "fasta-skills",
+      "description": "Agent skills for FASTA and Lenx API workflows",
+      "version": "9.9.9",
+      "source": "./"
+    }
+  ]
+}

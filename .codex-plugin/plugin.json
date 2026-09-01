@@ -1,0 +1,6 @@
+{
+  "name": "fasta-skills",
+  "version": "9.9.9",
+  "description": "Agent skills for FASTA and Lenx API workflows",
+  "skills": "./skills/"
+}

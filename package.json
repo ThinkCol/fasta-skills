@@ -1,0 +1,15 @@
+{
+  "name": "fasta-skills",
+  "version": "9.9.9",
+  "description": "Agent skills for FASTA and Lenx API workflows",
+  "keywords": [
+    "pi-package"
+  ],
+  "type": "module",
+  "main": ".opencode/plugins/fasta-skills.js",
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  }
+}

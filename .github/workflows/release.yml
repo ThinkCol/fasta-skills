@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify version consistency
+        shell: bash
+        run: |
+          bash scripts/bump-version.sh --check
+          VERSION="$(jq -r '.version' package.json)"
+          test "$GITHUB_REF_NAME" = "v${VERSION}" || {
+            echo "Tag $GITHUB_REF_NAME does not match package.json version v${VERSION}" >&2
+            exit 1
+          }
+
+      - name: Validate JSON manifests
+        shell: bash
+        run: |
+          jq empty \
+            package.json \
+            .claude-plugin/plugin.json \
+            .claude-plugin/marketplace.json \
+            .codex-plugin/plugin.json \
+            .agents/plugins/marketplace.json
+
+      - name: Extract release notes
+        shell: bash
+        run: |
+          awk '
+            /^## v/ {
+              if (found) exit
+              found=1
+            }
+            found { print }
+          ' RELEASE-NOTES.md > notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "fasta-skills $GITHUB_REF_NAME" --notes-file notes.md
